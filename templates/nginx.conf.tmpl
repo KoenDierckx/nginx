@@ -19,11 +19,29 @@ http {
     include                     /etc/nginx/mime.types;
     default_type                application/octet-stream;
 
+    {{ if getenv "NGINX_LOG_IGNORE_IPS" }}
+    geo $remote_addr $log_ip {
+        default 1;
+        {{ if not (eq (getenv "NGINX_REAL_IP_RECURSIVE" "off") "on") }}
+            proxy_recursive;
+        {{ end }}
+        {{ if getenv "NGINX_SET_REAL_IP_FROM" }}
+            proxy {{ getenv "NGINX_SET_REAL_IP_FROM" }};
+        {{ end }}
+        {{ if getenv "NGINX_SET_REAL_IPS_FROM"}}{{ range jsonArray ( getenv "NGINX_SET_REAL_IPS_FROM" ) }}
+            proxy {{ . }};
+        {{ end }}{{ end }}
+        {{ range jsonArray ( getenv "NGINX_LOG_IGNORE_IPS" ) }}
+            {{ . }} 0;
+        {{ end }}
+    }
+    {{ end }}
+
     {{ if getenv "NGINX_LOG_FORMAT_OVERRIDE" }}
     log_format                  custom '{{ getenv "NGINX_LOG_FORMAT_OVERRIDE" }}';
-    access_log                  /proc/self/fd/1 custom;
+    access_log                  /proc/self/fd/1 custom{{ if getenv "NGINX_LOG_IGNORE_IPS" }}if=$log_ip{{ end }};
     {{ else}}
-    access_log                  /proc/self/fd/1 combined;
+    access_log                  /proc/self/fd/1 combined{{ if getenv "NGINX_LOG_IGNORE_IPS" }}if=$log_ip{{ end }};
     {{ end }}
 
     send_timeout                {{ getenv "NGINX_SEND_TIMEOUT" "60s" }};
